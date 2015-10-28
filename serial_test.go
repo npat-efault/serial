@@ -11,7 +11,7 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal("GetConf:", err)
 	}
-	t.Logf("Conf: %#v", c)
+	t.Logf("Conf: %+v", c)
 
 	err = p.Close()
 	if err != nil {

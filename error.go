@@ -1,60 +1,60 @@
 package serial
 
-// ErrCode encodes the errors returned by this package.
-type ErrCode int
+import "io"
+
+type errFlags int
 
 const (
-	ErrUnknown ErrCode = iota
-	ErrOpen            // Cannot open port, see system error
-	ErrConf            // Cannot set port configuration
-	ErrGetConf         // Cannot read / decode port configuration
-	ErrRead            // Read from port failed
-	ErrWrite           // Write to port failed
-	ErrTimeout         // Read or write operation timed-out
-	ErrReset           // Cannot reset port to original settings
-	ErrClosed          // Port has been closed
-	ErrInvalid         // Invalid argument or parameter
+	efClosed errFlags = 1 << iota
+	efTimeout
+	efTemporary
 )
 
-var errStr = [...]string{
-	"unkown error",
-	"cannot open port",
-	"cannot config port",
-	"cannot read conf",
-	"read failed",
-	"write failed",
-	"timeout expired",
-	"cannot reset port",
-	"port closed",
-	"invalid argument",
+type errT struct {
+	flags errFlags
+	msg   string
 }
 
-// Error is the error type returned by all functions and methods in
-// this package. The Code field is the system-independent error code
-// filled-in by the package (see ErCode constants). The field Err
-// supplies the system-specific error, if available. In most cases it
-// should be enough to examine in order to act upon the erroe.
-type Error struct {
-	Code ErrCode
-	Err  error // system error
+func (e *errT) Error() string {
+	return e.msg
 }
 
-func (e *Error) Error() string {
-	if e.Err == nil {
-		return errStr[e.Code]
-	} else {
-		return errStr[e.Code] + ": " + e.Err.Error()
-	}
+func (e *errT) Timeout() bool {
+	return e.flags&efTimeout != 0
 }
 
-func (e *Error) Timeout() bool {
-	return e.Code == ErrTimeout
+func (e *errT) Temporary() bool {
+	return e.flags&(efTimeout|efTemporary) != 0
 }
 
-func (e *Error) Temporary() bool {
-	return e.Code == ErrTimeout
+func (e *errT) Closed() bool {
+	return e.flags&efClosed != 0
 }
 
-func (e *Error) Closed() bool {
-	return e.Code == ErrClosed
+func mkErr(flags errFlags, msg string) error {
+	return &errT{flags: flags, msg: msg}
 }
+
+func newErr(msg string) error {
+	return &errT{msg: msg}
+}
+
+var (
+	// ErrClosed is returned by package functions and methods to
+	// indicate failure because the port they tried to operate on
+	// has been closed.
+	ErrClosed = mkErr(efClosed, "port closed")
+	// ErrTimeout is returned by Port methods Read and Write to
+	// indicate that the operation took too long, and the set
+	// timeout or deadline has expired.
+	ErrTimeout = mkErr(efTimeout, "timeout/deadline expired")
+	// Returned by Port method Read, in accordance with the io.Reader
+	// interface.
+	ErrEOF = io.EOF
+	// Returned by Port method Write, in accordance with the
+	// io.Writer interface.
+	ErrUnexpectedEOF = io.ErrUnexpectedEOF
+	// Other errors may as well be returned by package methods and
+	// functions. These may be system-dependent and subject to
+	// change, so you should not act based on their value.
+)

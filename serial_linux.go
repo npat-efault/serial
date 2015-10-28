@@ -12,7 +12,11 @@ package serial
 #include <unistd.h>
 */
 import "C"
-import "github.com/npat-efault/poller"
+import (
+	"strconv"
+
+	"github.com/npat-efault/poller"
+)
 
 type port struct {
 	fd          *poller.FD
@@ -56,11 +60,11 @@ var stdSpeeds = speedTable{
 func open(name string) (p *port, err error) {
 	fd, err := poller.Open(name, poller.O_RW)
 	if err != nil {
-		return nil, &Error{ErrOpen, err}
+		return nil, newErr("open: " + err.Error())
 	}
 
 	if err := fd.Lock(); err != nil {
-		return nil, &Error{ErrClosed, nil}
+		return nil, ErrClosed
 	}
 	defer fd.Unlock()
 
@@ -69,7 +73,7 @@ func open(name string) (p *port, err error) {
 	var tiosOrig C.struct_termios
 	r, err := C.tcgetattr(cfd, &tiosOrig)
 	if r < 0 {
-		return nil, &Error{ErrGetConf, err}
+		return nil, newErr("tcgetattr: " + err.Error())
 	}
 
 	// Set raw mode, CLOCAL and HUPCL
@@ -78,7 +82,7 @@ func open(name string) (p *port, err error) {
 	tios.c_cflag |= C.CLOCAL | C.HUPCL
 	r, err = C.tcsetattr(cfd, C.TCSANOW, &tios)
 	if r < 0 {
-		return nil, &Error{ErrConf, err}
+		return nil, newErr("tcsetattr: " + err.Error())
 	}
 
 	return &port{fd: fd, origTermios: tiosOrig}, nil
@@ -88,35 +92,42 @@ func (p *port) close() error {
 	var errSetattr error
 	if !p.noReset {
 		if err := p.fd.Lock(); err != nil {
-			return &Error{ErrClosed, nil}
+			return ErrClosed
 		}
 		r, err := C.tcsetattr(C.int(p.fd.Sysfd()),
 			C.TCSANOW, &p.origTermios)
 		p.fd.Unlock()
 		if r < 0 {
-			errSetattr = &Error{ErrReset, err}
+			errSetattr = newErr("tcsetattr: " + err.Error())
 		} else {
 			errSetattr = nil
 		}
 	}
 	err := p.fd.Close()
 	if errSetattr != nil {
-		return errSetattr
+		err = errSetattr
 	} else {
-		return err
+		if err != nil {
+			if err == poller.ErrClosed {
+				err = ErrClosed
+			} else {
+				err = newErr("close: " + err.Error())
+			}
+		}
 	}
+	return err
 }
 
 func (p *port) getConf() (conf Conf, err error) {
 	var tios C.struct_termios
 
 	if err := p.fd.Lock(); err != nil {
-		return conf, &Error{ErrClosed, nil}
+		return conf, ErrClosed
 	}
 	r, err := C.tcgetattr(C.int(p.fd.Sysfd()), &tios)
 	p.fd.Unlock()
 	if r < 0 {
-		return conf, &Error{ErrGetConf, err}
+		return conf, newErr("tcgetattr: " + err.Error())
 	}
 
 	// Baudrate
@@ -124,7 +135,7 @@ func (p *port) getConf() (conf Conf, err error) {
 	var ok bool
 	conf.Baudrate, ok = stdSpeeds.Speed(uint32(spdCode))
 	if !ok {
-		return conf, &Error{ErrGetConf, nil}
+		return conf, newErr("cannot decode baudrate")
 	}
 
 	// Databits
@@ -138,7 +149,7 @@ func (p *port) getConf() (conf Conf, err error) {
 	case C.CS8:
 		conf.Databits = 8
 	default:
-		return conf, &Error{ErrGetConf, nil}
+		return conf, newErr("cannot decode databits")
 	}
 
 	// Stopbits
@@ -191,20 +202,21 @@ func (p *port) doConf(conf Conf, flags int) error {
 	var tios C.struct_termios
 
 	if err := p.fd.Lock(); err != nil {
-		return &Error{ErrClosed, nil}
+		return ErrClosed
 	}
 	defer p.fd.Unlock()
 
 	cfd := C.int(p.fd.Sysfd())
 	r, err := C.tcgetattr(cfd, &tios)
 	if r < 0 {
-		return &Error{ErrGetConf, err}
+		return newErr("tcgetattr: " + err.Error())
 	}
 
 	if flags&dcBaudrate != 0 {
 		spd, ok := stdSpeeds.Code(conf.Baudrate)
 		if !ok {
-			return &Error{ErrInvalid, nil}
+			return newErr("invalid baudrate: " +
+				strconv.Itoa(conf.Baudrate))
 		}
 		C.cfsetospeed(&tios, C.speed_t(spd))
 	}
@@ -224,7 +236,8 @@ func (p *port) doConf(conf Conf, flags int) error {
 			tios.c_cflag &^= C.CSIZE
 			tios.c_cflag |= C.CS8
 		default:
-			return &Error{ErrInvalid, nil}
+			return newErr("invalid databits value: " +
+				strconv.Itoa(conf.Databits))
 		}
 	}
 
@@ -235,7 +248,8 @@ func (p *port) doConf(conf Conf, flags int) error {
 		case 2:
 			tios.c_cflag |= C.CSTOPB
 		default:
-			return &Error{ErrInvalid, nil}
+			return newErr("invalid stopbits value: " +
+				strconv.Itoa(conf.Stopbits))
 		}
 	}
 
@@ -255,7 +269,8 @@ func (p *port) doConf(conf Conf, flags int) error {
 		case ParityNone:
 			tios.c_cflag &^= C.PARENB | C.PARODD | C.CMSPAR
 		default:
-			return &Error{ErrInvalid, nil}
+			return newErr("invalid parity mode: " +
+				conf.Parity.String())
 		}
 	}
 
@@ -271,7 +286,8 @@ func (p *port) doConf(conf Conf, flags int) error {
 			tios.c_cflag &^= C.CRTSCTS
 			tios.c_iflag &^= C.IXON | C.IXOFF | C.IXANY
 		default:
-			return &Error{ErrInvalid, nil}
+			return newErr("invalid flow-control mode: " +
+				conf.Flow.String())
 		}
 	}
 
@@ -281,7 +297,7 @@ func (p *port) doConf(conf Conf, flags int) error {
 
 	r, err = C.tcsetattr(cfd, C.TCSANOW, &tios)
 	if r < 0 {
-		return &Error{ErrConf, err}
+		return newErr("tcsetattr: " + err.Error())
 	}
 
 	return nil

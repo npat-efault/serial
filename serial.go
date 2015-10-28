@@ -1,3 +1,10 @@
+// Copyright (c) 2015, Nick Patavalis (npat@efault.net).
+// All rights reserved.
+// Use of this source code is governed by a BSD-style license that can
+// be found in the LICENSE file.
+
+// Package serial provides a system independent interface for
+// accessing serial ports.
 package serial
 
 // Port is a serial port
@@ -26,6 +33,8 @@ const (
 	FlowXONXOFF                 // Software flow control
 	FlowOther                   // Unknown mode
 )
+
+//go:generate stringer -type=ParityMode,FlowMode -output enum_strings.go
 
 // Conf is used to pass the serial port's configuration parameters to
 // and from methods of this package.
