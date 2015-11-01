@@ -3,7 +3,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.txt file.
 
-// +build linux
+// +build !windows
+
+// Linux implementation that uses CGo ang LIBC's termios functions.
 
 package serial
 
@@ -14,6 +16,8 @@ package serial
 import "C"
 import (
 	"strconv"
+	"syscall"
+	"time"
 
 	"github.com/npat-efault/poller"
 )
@@ -24,37 +28,24 @@ type port struct {
 	noReset     bool
 }
 
-var stdSpeeds = speedTable{
-	{0, C.B0},
-	{50, C.B50},
-	{75, C.B75},
-	{110, C.B110},
-	{134, C.B134},
-	{150, C.B150},
-	{200, C.B200},
-	{300, C.B300},
-	{600, C.B600},
-	{1200, C.B1200},
-	{1800, C.B1800},
-	{2400, C.B2400},
-	{4800, C.B4800},
-	{9600, C.B9600},
-	{19200, C.B19200},
-	{38400, C.B38400},
-	{57600, C.B57600},
-	{115200, C.B115200},
-	{230400, C.B230400},
-	{460800, C.B460800},
-	{500000, C.B500000},
-	{576000, C.B576000},
-	{921600, C.B921600},
-	{1000000, C.B1000000},
-	{1152000, C.B1152000},
-	{2000000, C.B2000000},
-	{2500000, C.B2500000},
-	{3000000, C.B3000000},
-	{3500000, C.B3500000},
-	{4000000, C.B4000000},
+func tcSetAttr(fd, act C.int, tios *C.struct_termios) (n C.int, err error) {
+	for {
+		n, err := C.tcsetattr(fd, act, tios)
+		if n < 0 && err == syscall.EINTR {
+			continue
+		}
+		return n, err
+	}
+}
+
+func tcGetAttr(fd C.int, tios *C.struct_termios) (n C.int, err error) {
+	for {
+		n, err := C.tcgetattr(fd, tios)
+		if n < 0 && err == syscall.EINTR {
+			continue
+		}
+		return n, err
+	}
 }
 
 func open(name string) (p *port, err error) {
@@ -71,7 +62,7 @@ func open(name string) (p *port, err error) {
 	// Get attributes
 	cfd := C.int(fd.Sysfd())
 	var tiosOrig C.struct_termios
-	r, err := C.tcgetattr(cfd, &tiosOrig)
+	r, err := tcGetAttr(cfd, &tiosOrig)
 	if r < 0 {
 		return nil, newErr("tcgetattr: " + err.Error())
 	}
@@ -80,7 +71,7 @@ func open(name string) (p *port, err error) {
 	tios := tiosOrig
 	C.cfmakeraw(&tios)
 	tios.c_cflag |= C.CLOCAL | C.HUPCL
-	r, err = C.tcsetattr(cfd, C.TCSANOW, &tios)
+	r, err = tcSetAttr(cfd, C.TCSANOW, &tios)
 	if r < 0 {
 		return nil, newErr("tcsetattr: " + err.Error())
 	}
@@ -90,29 +81,25 @@ func open(name string) (p *port, err error) {
 
 func (p *port) close() error {
 	var errSetattr error
+
+	if err := p.fd.Lock(); err != nil {
+		return ErrClosed
+	}
+	defer p.fd.Unlock()
+
 	if !p.noReset {
-		if err := p.fd.Lock(); err != nil {
-			return ErrClosed
-		}
-		r, err := C.tcsetattr(C.int(p.fd.Sysfd()),
+		r, err := tcSetAttr(C.int(p.fd.Sysfd()),
 			C.TCSANOW, &p.origTermios)
-		p.fd.Unlock()
 		if r < 0 {
 			errSetattr = newErr("tcsetattr: " + err.Error())
-		} else {
-			errSetattr = nil
 		}
 	}
-	err := p.fd.Close()
+	err := p.fd.CloseUnlocked()
 	if errSetattr != nil {
 		err = errSetattr
 	} else {
 		if err != nil {
-			if err == poller.ErrClosed {
-				err = ErrClosed
-			} else {
-				err = newErr("close: " + err.Error())
-			}
+			err = newErr("close: " + err.Error())
 		}
 	}
 	return err
@@ -120,11 +107,13 @@ func (p *port) close() error {
 
 func (p *port) getConf() (conf Conf, err error) {
 	var tios C.struct_termios
+	var noReset bool
 
 	if err := p.fd.Lock(); err != nil {
 		return conf, ErrClosed
 	}
-	r, err := C.tcgetattr(C.int(p.fd.Sysfd()), &tios)
+	r, err := tcGetAttr(C.int(p.fd.Sysfd()), &tios)
+	noReset = p.noReset
 	p.fd.Unlock()
 	if r < 0 {
 		return conf, newErr("tcgetattr: " + err.Error())
@@ -193,12 +182,12 @@ func (p *port) getConf() (conf Conf, err error) {
 	}
 
 	// NoReset
-	conf.NoReset = p.noReset
+	conf.NoReset = noReset
 
 	return conf, nil
 }
 
-func (p *port) doConf(conf Conf, flags int) error {
+func (p *port) confSome(conf Conf, flags ConfFlags) error {
 	var tios C.struct_termios
 
 	if err := p.fd.Lock(); err != nil {
@@ -206,13 +195,20 @@ func (p *port) doConf(conf Conf, flags int) error {
 	}
 	defer p.fd.Unlock()
 
+	if flags&ConfNoReset != 0 {
+		p.noReset = conf.NoReset
+	}
+	if flags & ^ConfNoReset == 0 {
+		return nil
+	}
+
 	cfd := C.int(p.fd.Sysfd())
-	r, err := C.tcgetattr(cfd, &tios)
+	r, err := tcGetAttr(cfd, &tios)
 	if r < 0 {
 		return newErr("tcgetattr: " + err.Error())
 	}
 
-	if flags&dcBaudrate != 0 {
+	if flags&ConfBaudrate != 0 {
 		spd, ok := stdSpeeds.Code(conf.Baudrate)
 		if !ok {
 			return newErr("invalid baudrate: " +
@@ -221,7 +217,7 @@ func (p *port) doConf(conf Conf, flags int) error {
 		C.cfsetospeed(&tios, C.speed_t(spd))
 	}
 
-	if flags&dcDatabits != 0 {
+	if flags&ConfDatabits != 0 {
 		switch conf.Databits {
 		case 5:
 			tios.c_cflag &^= C.CSIZE
@@ -241,7 +237,7 @@ func (p *port) doConf(conf Conf, flags int) error {
 		}
 	}
 
-	if flags&dcStopbits != 0 {
+	if flags&ConfStopbits != 0 {
 		switch conf.Stopbits {
 		case 1:
 			tios.c_cflag &^= C.CSTOPB
@@ -253,7 +249,7 @@ func (p *port) doConf(conf Conf, flags int) error {
 		}
 	}
 
-	if flags&dcParity != 0 {
+	if flags&ConfParity != 0 {
 		switch conf.Parity {
 		case ParityEven:
 			tios.c_cflag &^= C.PARODD | C.CMSPAR
@@ -274,7 +270,7 @@ func (p *port) doConf(conf Conf, flags int) error {
 		}
 	}
 
-	if flags&dcFlow != 0 {
+	if flags&ConfFlow != 0 {
 		switch conf.Flow {
 		case FlowRTSCTS:
 			tios.c_cflag |= C.CRTSCTS
@@ -291,14 +287,91 @@ func (p *port) doConf(conf Conf, flags int) error {
 		}
 	}
 
-	if flags&dcNoReset != 0 {
-		p.noReset = conf.NoReset
-	}
-
-	r, err = C.tcsetattr(cfd, C.TCSANOW, &tios)
+	r, err = tcSetAttr(cfd, C.TCSANOW, &tios)
 	if r < 0 {
 		return newErr("tcsetattr: " + err.Error())
 	}
 
+	return nil
+}
+
+func (p *port) read(b []byte) (n int, err error) {
+	n, err = p.fd.Read(b)
+	switch err {
+	case poller.ErrTimeout:
+		err = ErrTimeout
+	case poller.ErrClosed:
+		err = ErrClosed
+	}
+	return n, err
+}
+
+func (p *port) write(b []byte) (n int, err error) {
+	n, err = p.fd.Write(b)
+	switch err {
+	case poller.ErrTimeout:
+		err = ErrTimeout
+	case poller.ErrClosed:
+		err = ErrClosed
+	}
+	return n, err
+}
+
+func (p *port) setDeadline(t time.Time) error {
+	err := p.fd.SetDeadline(t)
+	if err == poller.ErrClosed {
+		err = ErrClosed
+	}
+	return err
+}
+
+func (p *port) setReadDeadline(t time.Time) error {
+	err := p.fd.SetReadDeadline(t)
+	if err == poller.ErrClosed {
+		err = ErrClosed
+	}
+	return err
+}
+
+func (p *port) setWriteDeadline(t time.Time) error {
+	err := p.fd.SetReadDeadline(t)
+	if err == poller.ErrClosed {
+		err = ErrClosed
+	}
+	return err
+}
+
+func tcFlush(fd C.int, qsel C.int) (n C.int, err error) {
+	for {
+		n, err := C.tcflush(fd, qsel)
+		if n < 0 && err == syscall.EINTR {
+			continue
+		}
+		return n, err
+	}
+}
+
+func (p *port) flush(q flushSel) error {
+	var qsel C.int
+	switch q {
+	case flushIn:
+		qsel = C.TCIFLUSH
+	case flushOut:
+		qsel = C.TCOFLUSH
+	case flushInOut:
+		qsel = C.TCIOFLUSH
+	default:
+		return newErr("invalid flush selector")
+	}
+
+	if err := p.fd.Lock(); err != nil {
+		return ErrClosed
+	}
+	defer p.fd.Unlock()
+	r, err := tcFlush(C.int(p.fd.Sysfd()), qsel)
+	if r < 0 {
+		err = newErr("tcflush: " + err.Error())
+		return err
+	}
 	return nil
 }
