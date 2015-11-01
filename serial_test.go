@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-var dev = os.Getenv("SERIAL_TEST_DEV")
+var dev = os.Getenv("TEST_SERIAL_DEV")
 
 func TestBaudrate(t *testing.T) {
 	if dev == "" {

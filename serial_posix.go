@@ -70,8 +70,8 @@ func open(name string) (p *port, err error) {
 	defer fd.Unlock()
 
 	// Get attributes
-	cfd := C.int(fd.Sysfd())
 	var tiosOrig C.struct_termios
+	cfd := C.int(fd.Sysfd())
 	r, err := tcGetAttr(cfd, &tiosOrig)
 	if r < 0 {
 		return nil, newErr("tcgetattr: " + err.Error())
@@ -198,8 +198,6 @@ func (p *port) getConf() (conf Conf, err error) {
 }
 
 func (p *port) confSome(conf Conf, flags ConfFlags) error {
-	var tios C.struct_termios
-
 	if err := p.fd.Lock(); err != nil {
 		return ErrClosed
 	}
@@ -212,6 +210,7 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 		return nil
 	}
 
+	var tios C.struct_termios
 	cfd := C.int(p.fd.Sysfd())
 	r, err := tcGetAttr(cfd, &tios)
 	if r < 0 {
