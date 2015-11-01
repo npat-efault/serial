@@ -3,7 +3,15 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.txt file.
 
-// +build !linux,!windows
+// +build freebsd netbsd openbsd darwin dragonfly solaris
+
+// Standard serial port speeds defined by POSIX and taken from
+// system's LIBC headers using CGo.
+//
+// These speeds should be available on all POSIX systems. Most likely
+// your system will support more (higher) speeds. If this is the case,
+// copy this file as "speeds_<system>.go", add the additional
+// supported speeds and edit the build-tags accordingly.
 
 package serial
 

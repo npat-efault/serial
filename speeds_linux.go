@@ -5,6 +5,9 @@
 
 // +build linux
 
+// Standard serial port speeds defined in Linux and taken from
+// system's LIBC headers using CGo.
+
 package serial
 
 /*

@@ -3,15 +3,25 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.txt file.
 
-// +build !windows
+// +build linux freebsd netbsd openbsd darwin dragonfly solaris
 
-// Linux implementation that uses CGo ang LIBC's termios functions.
+// POSIX implementation that uses CGo ang LIBC's termios functions.
 
 package serial
 
 /*
+
 #include <termios.h>
 #include <unistd.h>
+
+#ifndef CRTSCTS
+#define CRTSCTS 0
+#endif
+
+#ifndef CMSPAR
+#define CMSPAR 0
+#endif
+
 */
 import "C"
 import (
@@ -69,7 +79,7 @@ func open(name string) (p *port, err error) {
 
 	// Set raw mode, CLOCAL and HUPCL
 	tios := tiosOrig
-	C.cfmakeraw(&tios)
+	cfMakeRaw(&tios)
 	tios.c_cflag |= C.CLOCAL | C.HUPCL
 	r, err = tcSetAttr(cfd, C.TCSANOW, &tios)
 	if r < 0 {

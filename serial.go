@@ -7,7 +7,10 @@
 // accessing serial ports.
 package serial
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Port is a serial port
 type Port struct {
@@ -26,6 +29,19 @@ const (
 	ParitySpace                   // Parity bit to logical 0 (space)
 )
 
+var parityModeStr = []string{
+	"ParityNone", "ParityEven", "ParityOdd",
+	"ParityMark", "ParitxySpace",
+}
+
+func (p ParityMode) String() string {
+	if p >= 0 && int(p) < len(parityModeStr) {
+		return parityModeStr[p]
+	} else {
+		return fmt.Sprintf("ParityMode(%d)", p)
+	}
+}
+
 // FlowMode encodes the supported flow-control modes
 type FlowMode int
 
@@ -36,7 +52,19 @@ const (
 	FlowOther                   // Unknown mode
 )
 
-//go:generate stringer -type=ParityMode,FlowMode -output enum_strings.go
+var flowModeStr = []string{
+	"FlowNone", "FlowRTSCTS", "FlowXONXOFF", "FlowOther",
+}
+
+func (f FlowMode) String() string {
+	if f >= 0 && int(f) < len(flowModeStr) {
+		return flowModeStr[f]
+	} else {
+		return fmt.Sprintf("FlowMode(%d)", f)
+	}
+}
+
+// //go:generate stringer lala -type=ParityMode,FlowMode -output enum_strings.go
 
 // Conf is used to pass the serial port's configuration parameters to
 // and from methods of this package.
