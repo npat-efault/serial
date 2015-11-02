@@ -5,6 +5,20 @@
 
 // Package serial provides a simple system-independent interface for
 // accessing serial ports.
+//
+// Supported systems
+//
+// Currently package serial supports systems that provide the POSIX
+// "termios" interface for configuring serial ports (most Unix-like
+// systems) and uses CGo to access the relevant system
+// standard-library functions, constants and types. For data-transfer
+// operations (Read, Write, etc) it uses the package
+// "github.com/npat-efault/poller" which provides I/O operations with
+// timeouts and safe cancelation. Package poller also supports most
+// POSIX systems. See package poller documentation for details.
+//
+// Addition of support (either pure Go, or CGo based) for other
+// systems is certainly possible, and mostly welcome.
 package serial
 
 import (
@@ -29,9 +43,9 @@ const (
 	ParitySpace                   // Parity bit to logical 0 (space)
 )
 
-var parityModeStr = []string{
+var parityModeStr = [...]string{
 	"ParityNone", "ParityEven", "ParityOdd",
-	"ParityMark", "ParitxySpace",
+	"ParityMark", "ParitySpace",
 }
 
 func (p ParityMode) String() string {
@@ -52,7 +66,7 @@ const (
 	FlowOther                   // Unknown mode
 )
 
-var flowModeStr = []string{
+var flowModeStr = [...]string{
 	"FlowNone", "FlowRTSCTS", "FlowXONXOFF", "FlowOther",
 }
 
@@ -63,8 +77,6 @@ func (f FlowMode) String() string {
 		return fmt.Sprintf("FlowMode(%d)", f)
 	}
 }
-
-// //go:generate stringer lala -type=ParityMode,FlowMode -output enum_strings.go
 
 // Conf is used to pass the serial port's configuration parameters to
 // and from methods of this package.
@@ -77,8 +89,10 @@ type Conf struct {
 	NoReset  bool       // don't reset and don't hangup on close
 }
 
-// Functions bellow are actually implemented in the system-specific
-// serial_<system>.go files.
+// Functions bellow are just stubs that call their system-specific
+// counterparts which can be found in other files of this
+// package. System-specific files should *not* export any additional
+// symbols.
 
 // Open opens the named serial port. Open records the port-settings
 // (so they can be reset at Close), and sets the port to what unix
@@ -188,20 +202,27 @@ const (
 	flushInOut
 )
 
+// Flush discards any unread data in the serial port's receive
+// buffers, as well as any unsent data in the transmit buffers.
 func (p *Port) Flush() error {
 	return p.port.flush(flushInOut)
 }
 
+// FlushIn discards any unread data in the serial port's receive
+// buffers.
 func (p *Port) FlushIn() error {
 	return p.port.flush(flushIn)
 }
 
+// FlushOut discards any unread data in the serial port's transmit
+// buffers.
 func (p *Port) FlushOut() error {
 	return p.port.flush(flushOut)
 }
 
 // speedTable is used to map numeric tty speeds (baudrates) to the
-// respective code (Bxxx) values.
+// respective system-specific code values. It may or may-not be used
+// by system-specific implementations.
 type speedTable []struct {
 	speed int
 	code  uint32
