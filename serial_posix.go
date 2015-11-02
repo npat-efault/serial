@@ -267,8 +267,14 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 			tios.c_cflag &^= C.CMSPAR
 			tios.c_cflag |= C.PARENB | C.PARODD
 		case ParityMark:
+			if C.CMSPAR == 0 {
+				return newErr("ParityMark not supported")
+			}
 			tios.c_cflag |= C.PARENB | C.PARODD | C.CMSPAR
 		case ParitySpace:
+			if C.CMSPAR == 0 {
+				return newErr("ParitySpace not supported")
+			}
 			tios.c_cflag &^= C.PARODD
 			tios.c_cflag |= C.PARENB | C.CMSPAR
 		case ParityNone:
@@ -282,6 +288,9 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 	if flags&ConfFlow != 0 {
 		switch conf.Flow {
 		case FlowRTSCTS:
+			if C.CRTSCTS == 0 {
+				return newErr("FlowRTSCTS not supported")
+			}
 			tios.c_cflag |= C.CRTSCTS
 			tios.c_iflag &^= C.IXON | C.IXOFF | C.IXANY
 		case FlowXONXOFF:
