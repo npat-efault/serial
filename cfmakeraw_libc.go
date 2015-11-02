@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.txt file.
 
-// +build freebsd netbsd openbsd darwin dragonfly
+// +build linux freebsd netbsd openbsd darwin dragonfly
 
 // cfMakeRaw function that calls system's LIBC equivalent using CGo.
 //

@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.txt file.
 
-// +build linux
+// +build solaris
 
 // cfMakeRaw function implemented by directly settings
 // C.struct_termios flags, for systems that don't provide a
@@ -12,8 +12,18 @@
 package serial
 
 /*
+
 #include <termios.h>
 #include <unistd.h>
+
+#ifndef IMAXBEL
+#define IMAXBEL 0
+#endif
+
+#ifndef PENDIN
+#define PENDIN 0
+#endif
+
 */
 import "C"
 
