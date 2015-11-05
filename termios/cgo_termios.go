@@ -4,6 +4,7 @@
 // be found in the LICENSE file.
 
 // +build linux freebsd netbsd openbsd darwin dragonfly solaris
+// +build !nocgo
 
 // Implementation that uses CGo to access the system's LIBC functions
 // and macros.
@@ -15,7 +16,6 @@ package termios
 #include <unistd.h>
 
 #include "termios_nonstd.h"
-
 */
 import "C"
 import "syscall"
@@ -217,10 +217,10 @@ func (t *Termios) GetOSpeed() (speed int, err error) {
 	return speed, nil
 }
 
-// GetOSpeed returns the output (transmitter) baudrate in Termios
+// GetISpeed returns the input (receiver) baudrate in Termios
 // structure t as a numerical (integer) value in
 // bits-per-second. Returns err == syscal.EINVAL if the baudrate in t
-// cannot be decoded. See also getospeed(3).
+// cannot be decoded. See also getispeed(3).
 func (t *Termios) GetISpeed() (speed int, err error) {
 	code := C.cfgetispeed(&t.t)
 	speed, ok := stdSpeeds.Speed(spdCode(code))

@@ -4,6 +4,7 @@
 // be found in the LICENSE file.
 
 // +build linux freebsd netbsd openbsd darwin dragonfly
+// +build !nocgo
 
 // MakeRaw Termios method implementation that calls LIBC's cfmakeraw()
 // through CGo.

@@ -3,10 +3,11 @@
 // Use of this source code is governed by a BSD-style license that can
 // be found in the LICENSE file.
 
-// +build !cgo solaris
+// +build linux freebsd netbsd openbsd darwin dragonfly solaris
+// +build nocgo !cgo solaris
 
-// MakeRaw Termios method implementation for system's that don't have
-// a cfmakeraw in LIBC.
+// MakeRaw Termios method implementation for pure-Go builds and for
+// systems that don't have a cfmakeraw in LIBC.
 
 package termios
 
