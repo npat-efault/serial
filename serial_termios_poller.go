@@ -5,57 +5,24 @@
 
 // +build linux freebsd netbsd openbsd darwin dragonfly solaris
 
-// POSIX implementation that uses CGo ang LIBC's termios functions.
+// Implementation that uses the "termios" package for configuring the
+// serial port, and the "poller" package for doing serial I/O. Should
+// work with most Unix-like systems.
 
 package serial
 
-/*
-
-#include <termios.h>
-#include <unistd.h>
-
-#ifndef CRTSCTS
-#define CRTSCTS 0
-#endif
-
-#ifndef CMSPAR
-#define CMSPAR 0
-#endif
-
-*/
-import "C"
 import (
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/npat-efault/poller"
+	"github.com/npat-efault/serial/termios"
 )
 
 type port struct {
 	fd          *poller.FD
-	origTermios C.struct_termios
+	origTermios termios.Termios
 	noReset     bool
-}
-
-func tcSetAttr(fd, act C.int, tios *C.struct_termios) (n C.int, err error) {
-	for {
-		n, err := C.tcsetattr(fd, act, tios)
-		if n < 0 && err == syscall.EINTR {
-			continue
-		}
-		return n, err
-	}
-}
-
-func tcGetAttr(fd C.int, tios *C.struct_termios) (n C.int, err error) {
-	for {
-		n, err := C.tcgetattr(fd, tios)
-		if n < 0 && err == syscall.EINTR {
-			continue
-		}
-		return n, err
-	}
 }
 
 func open(name string) (p *port, err error) {
@@ -70,19 +37,18 @@ func open(name string) (p *port, err error) {
 	defer fd.Unlock()
 
 	// Get attributes
-	var tiosOrig C.struct_termios
-	cfd := C.int(fd.Sysfd())
-	r, err := tcGetAttr(cfd, &tiosOrig)
-	if r < 0 {
+	var tiosOrig termios.Termios
+	err = tiosOrig.GetFd(fd.Sysfd())
+	if err != nil {
 		return nil, newErr("tcgetattr: " + err.Error())
 	}
 
 	// Set raw mode, CLOCAL and HUPCL
 	tios := tiosOrig
-	cfMakeRaw(&tios)
-	tios.c_cflag |= C.CLOCAL | C.HUPCL
-	r, err = tcSetAttr(cfd, C.TCSANOW, &tios)
-	if r < 0 {
+	tios.MakeRaw()
+	tios.CFlag().Set(termios.CLOCAL | termios.HUPCL)
+	err = tios.SetFd(fd.Sysfd(), termios.TCSANOW)
+	if err != nil {
 		return nil, newErr("tcsetattr: " + err.Error())
 	}
 
@@ -98,9 +64,8 @@ func (p *port) close() error {
 	defer p.fd.Unlock()
 
 	if !p.noReset {
-		r, err := tcSetAttr(C.int(p.fd.Sysfd()),
-			C.TCSANOW, &p.origTermios)
-		if r < 0 {
+		err := p.origTermios.SetFd(p.fd.Sysfd(), termios.TCSANOW)
+		if err != nil {
 			errSetattr = newErr("tcsetattr: " + err.Error())
 		}
 	}
@@ -116,60 +81,57 @@ func (p *port) close() error {
 }
 
 func (p *port) getConf() (conf Conf, err error) {
-	var tios C.struct_termios
+	var tios termios.Termios
 	var noReset bool
 
-	if err := p.fd.Lock(); err != nil {
+	if err = p.fd.Lock(); err != nil {
 		return conf, ErrClosed
 	}
-	r, err := tcGetAttr(C.int(p.fd.Sysfd()), &tios)
+	err = tios.GetFd(p.fd.Sysfd())
 	noReset = p.noReset
 	p.fd.Unlock()
-	if r < 0 {
+	if err != nil {
 		return conf, newErr("tcgetattr: " + err.Error())
 	}
 
 	// Baudrate
-	spdCode := C.cfgetospeed(&tios)
-	var ok bool
-	conf.Baudrate, ok = stdSpeeds.Speed(uint32(spdCode))
-	if !ok {
-		return conf, newErr("cannot decode baudrate")
+	conf.Baudrate, err = tios.GetOSpeed()
+	if err != nil {
+		return conf, newErr("getospeed: " + err.Error())
 	}
 
 	// Databits
-	switch tios.c_cflag & C.CSIZE {
-	case C.CS5:
+	switch tios.CFlag().Msk(termios.CSIZE) {
+	case termios.CS5:
 		conf.Databits = 5
-	case C.CS6:
+	case termios.CS6:
 		conf.Databits = 6
-	case C.CS7:
+	case termios.CS7:
 		conf.Databits = 7
-	case C.CS8:
+	case termios.CS8:
 		conf.Databits = 8
 	default:
 		return conf, newErr("cannot decode databits")
 	}
 
 	// Stopbits
-	if tios.c_cflag&C.CSTOPB == 0 {
-		conf.Stopbits = 1
-	} else {
+	if tios.CFlag().Any(termios.CSTOPB) {
 		conf.Stopbits = 2
+	} else {
+		conf.Stopbits = 1
 	}
 
 	// Parity
-	flg := tios.c_cflag
-	if flg&C.PARENB == 0 {
+	if !tios.CFlag().Any(termios.PARENB) {
 		conf.Parity = ParityNone
-	} else if flg&C.CMSPAR != 0 {
-		if flg&C.PARODD != 0 {
+	} else if tios.CFlag().Any(termios.CMSPAR) {
+		if tios.CFlag().Any(termios.PARODD) {
 			conf.Parity = ParityMark
 		} else {
 			conf.Parity = ParitySpace
 		}
 	} else {
-		if flg&C.PARODD != 0 {
+		if tios.CFlag().Any(termios.PARODD) {
 			conf.Parity = ParityOdd
 		} else {
 			conf.Parity = ParityEven
@@ -177,9 +139,9 @@ func (p *port) getConf() (conf Conf, err error) {
 	}
 
 	// Flow
-	rtscts := tios.c_cflag&C.CRTSCTS != 0
-	xoff := tios.c_iflag&C.IXOFF != 0
-	xon := tios.c_iflag&(C.IXON|C.IXANY) != 0
+	rtscts := tios.CFlag().Any(termios.CRTSCTS)
+	xoff := tios.IFlag().Any(termios.IXOFF)
+	xon := tios.IFlag().Any(termios.IXON | termios.IXANY)
 
 	if rtscts && !xoff && !xon {
 		conf.Flow = FlowRTSCTS
@@ -210,36 +172,29 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 		return nil
 	}
 
-	var tios C.struct_termios
-	cfd := C.int(p.fd.Sysfd())
-	r, err := tcGetAttr(cfd, &tios)
-	if r < 0 {
+	var tios termios.Termios
+	err := tios.GetFd(p.fd.Sysfd())
+	if err != nil {
 		return newErr("tcgetattr: " + err.Error())
 	}
 
 	if flags&ConfBaudrate != 0 {
-		spd, ok := stdSpeeds.Code(conf.Baudrate)
-		if !ok {
-			return newErr("invalid baudrate: " +
-				strconv.Itoa(conf.Baudrate))
+		err := tios.SetOSpeed(conf.Baudrate)
+		if err != nil {
+			return newErr("setospeed: " + err.Error())
 		}
-		C.cfsetospeed(&tios, C.speed_t(spd))
 	}
 
 	if flags&ConfDatabits != 0 {
 		switch conf.Databits {
 		case 5:
-			tios.c_cflag &^= C.CSIZE
-			tios.c_cflag |= C.CS5
+			tios.CFlag().Clr(termios.CSIZE).Set(termios.CS5)
 		case 6:
-			tios.c_cflag &^= C.CSIZE
-			tios.c_cflag |= C.CS6
+			tios.CFlag().Clr(termios.CSIZE).Set(termios.CS6)
 		case 7:
-			tios.c_cflag &^= C.CSIZE
-			tios.c_cflag |= C.CS7
+			tios.CFlag().Clr(termios.CSIZE).Set(termios.CS7)
 		case 8:
-			tios.c_cflag &^= C.CSIZE
-			tios.c_cflag |= C.CS8
+			tios.CFlag().Clr(termios.CSIZE).Set(termios.CS8)
 		default:
 			return newErr("invalid databits value: " +
 				strconv.Itoa(conf.Databits))
@@ -249,9 +204,9 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 	if flags&ConfStopbits != 0 {
 		switch conf.Stopbits {
 		case 1:
-			tios.c_cflag &^= C.CSTOPB
+			tios.CFlag().Clr(termios.CSTOPB)
 		case 2:
-			tios.c_cflag |= C.CSTOPB
+			tios.CFlag().Set(termios.CSTOPB)
 		default:
 			return newErr("invalid stopbits value: " +
 				strconv.Itoa(conf.Stopbits))
@@ -261,24 +216,26 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 	if flags&ConfParity != 0 {
 		switch conf.Parity {
 		case ParityEven:
-			tios.c_cflag &^= C.PARODD | C.CMSPAR
-			tios.c_cflag |= C.PARENB
+			tios.CFlag().Clr(termios.PARODD | termios.CMSPAR)
+			tios.CFlag().Set(termios.PARENB)
 		case ParityOdd:
-			tios.c_cflag &^= C.CMSPAR
-			tios.c_cflag |= C.PARENB | C.PARODD
+			tios.CFlag().Clr(termios.CMSPAR)
+			tios.CFlag().Set(termios.PARENB | termios.PARODD)
 		case ParityMark:
-			if C.CMSPAR == 0 {
+			if termios.CMSPAR == 0 {
 				return newErr("ParityMark not supported")
 			}
-			tios.c_cflag |= C.PARENB | C.PARODD | C.CMSPAR
+			tios.CFlag().Set(termios.PARENB | termios.PARODD |
+				termios.CMSPAR)
 		case ParitySpace:
-			if C.CMSPAR == 0 {
+			if termios.CMSPAR == 0 {
 				return newErr("ParitySpace not supported")
 			}
-			tios.c_cflag &^= C.PARODD
-			tios.c_cflag |= C.PARENB | C.CMSPAR
+			tios.CFlag().Clr(termios.PARODD)
+			tios.CFlag().Set(termios.PARENB | termios.CMSPAR)
 		case ParityNone:
-			tios.c_cflag &^= C.PARENB | C.PARODD | C.CMSPAR
+			tios.CFlag().Clr(termios.PARENB | termios.PARODD |
+				termios.CMSPAR)
 		default:
 			return newErr("invalid parity mode: " +
 				conf.Parity.String())
@@ -288,25 +245,27 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 	if flags&ConfFlow != 0 {
 		switch conf.Flow {
 		case FlowRTSCTS:
-			if C.CRTSCTS == 0 {
+			if termios.CRTSCTS == 0 {
 				return newErr("FlowRTSCTS not supported")
 			}
-			tios.c_cflag |= C.CRTSCTS
-			tios.c_iflag &^= C.IXON | C.IXOFF | C.IXANY
+			tios.CFlag().Set(termios.CRTSCTS)
+			tios.IFlag().Clr(termios.IXON | termios.IXOFF |
+				termios.IXANY)
 		case FlowXONXOFF:
-			tios.c_cflag &^= C.CRTSCTS
-			tios.c_iflag |= C.IXON | C.IXOFF
+			tios.CFlag().Clr(termios.CRTSCTS)
+			tios.IFlag().Set(termios.IXON | termios.IXOFF)
 		case FlowNone:
-			tios.c_cflag &^= C.CRTSCTS
-			tios.c_iflag &^= C.IXON | C.IXOFF | C.IXANY
+			tios.CFlag().Clr(termios.CRTSCTS)
+			tios.IFlag().Clr(termios.IXON | termios.IXOFF |
+				termios.IXANY)
 		default:
 			return newErr("invalid flow-control mode: " +
 				conf.Flow.String())
 		}
 	}
 
-	r, err = tcSetAttr(cfd, C.TCSANOW, &tios)
-	if r < 0 {
+	err = tios.SetFd(p.fd.Sysfd(), termios.TCSANOW)
+	if err != nil {
 		return newErr("tcsetattr: " + err.Error())
 	}
 
@@ -359,25 +318,15 @@ func (p *port) setWriteDeadline(t time.Time) error {
 	return err
 }
 
-func tcFlush(fd C.int, qsel C.int) (n C.int, err error) {
-	for {
-		n, err := C.tcflush(fd, qsel)
-		if n < 0 && err == syscall.EINTR {
-			continue
-		}
-		return n, err
-	}
-}
-
 func (p *port) flush(q flushSel) error {
-	var qsel C.int
+	var qsel int
 	switch q {
 	case flushIn:
-		qsel = C.TCIFLUSH
+		qsel = termios.TCIFLUSH
 	case flushOut:
-		qsel = C.TCOFLUSH
+		qsel = termios.TCOFLUSH
 	case flushInOut:
-		qsel = C.TCIOFLUSH
+		qsel = termios.TCIOFLUSH
 	default:
 		return newErr("invalid flush selector")
 	}
@@ -386,10 +335,9 @@ func (p *port) flush(q flushSel) error {
 		return ErrClosed
 	}
 	defer p.fd.Unlock()
-	r, err := tcFlush(C.int(p.fd.Sysfd()), qsel)
-	if r < 0 {
-		err = newErr("tcflush: " + err.Error())
-		return err
+	err := termios.Flush(p.fd.Sysfd(), qsel)
+	if err != nil {
+		return newErr("tcflush: " + err.Error())
 	}
 	return nil
 }

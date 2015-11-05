@@ -1,3 +1,8 @@
+// Copyright (c) 2015, Nick Patavalis (npat@efault.net).
+// All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE.txt file.
+
 package serial
 
 import (
@@ -8,6 +13,12 @@ import (
 var dev = os.Getenv("TEST_SERIAL_DEV")
 
 func TestBaudrate(t *testing.T) {
+	var stdSpeeds = []int{
+		0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800,
+		2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400,
+		460800, 500000, 576000, 921600, 1000000, 1152000,
+		2000000, 2500000, 3000000, 3500000, 4000000,
+	}
 	if dev == "" {
 		t.Skip("No TEST_SERIAL_DEV variable set.")
 	}
@@ -20,8 +31,7 @@ func TestBaudrate(t *testing.T) {
 		t.Fatal("GetConf:", err)
 	}
 
-	for _, spd := range stdSpeeds {
-		s := spd.speed
+	for _, s := range stdSpeeds {
 		c := Conf{Baudrate: s}
 		err := p.ConfSome(c, ConfBaudrate)
 		if err != nil {
