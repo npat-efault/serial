@@ -72,9 +72,9 @@
 //
 // References
 //
-// [1] POSIX Terminal Interface
-// (https://en.wikipedia.org/wiki/POSIX_terminal_interface)
+//   [1] POSIX Terminal Interface
+//   (https://en.wikipedia.org/wiki/POSIX_terminal_interface)
 //
-// [2] Single Unix Specification V2, General Terminal interface
-// (http://pubs.opengroup.org/onlinepubs/7908799/xbd/termios.html)
+//   [2] POSIX.1-2008, Ch. 11: General Terminal Interface
+//   (http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap11.html)
 package termios

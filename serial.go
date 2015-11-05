@@ -3,22 +3,31 @@
 // Use of this source code is governed by a BSD-style license that can
 // be found in the LICENSE file.
 
-// Package serial provides a simple system-independent interface for
-// accessing serial ports.
+// Package serial provides a simple, high-level, system-independent
+// interface for accessing asynchronous serial ports. It provides
+// functions and methods for opening serial ports, configuring their
+// basic parameters (baudrate, character format, flow-control, etc.),
+// for reading and writing data from and to them, and for a few other
+// miscellaneous operations (e.g. sending a break signal, flushing the
+// I/O buffers). Data transfer operations support deadlines (timeouts)
+// and safe cancelation; a blocked read or write operation can be
+// safely and reliably canceled from another goroutine by closing the
+// port.
 //
 // Supported systems
 //
-// Currently package serial supports systems that provide the POSIX
-// "termios" interface for configuring serial ports (most Unix-like
-// systems) and uses CGo to access the relevant system
-// standard-library functions, constants and types. For data-transfer
-// operations (Read, Write, etc) it uses the package
-// "github.com/npat-efault/poller" which provides I/O operations with
-// timeouts and safe cancelation. Package poller also supports most
-// POSIX systems. See package poller documentation for details.
+// Most unix-like systems are supported. Package serial uses package
+// "termios" (github.com/npat-efault/serial/termios) to supports
+// systems that provide the POSIX Terminal Interface for configuring
+// terminal devices. For data-transfer operations (Read, Write) it
+// uses package "poller" (github.com/npat-efault/poller) which
+// provides I/O operations with timeouts and safe
+// cancelation. Depending on the specific system, both of these
+// packages (termios and poller) can be compiled either to use CGo or
+// as pure-Go packages. See their documentation for details.
 //
-// Addition of support (either pure Go, or CGo based) for other
-// systems is certainly possible, and mostly welcome.
+// Addition of support for other systems is certainly possible, and
+// mostly welcome.
 package serial
 
 import (
