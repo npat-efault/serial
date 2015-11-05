@@ -14,8 +14,8 @@ interface for accessing asynchronous serial ports.
 It provides functions and methods for opening serial ports,
 configuring their basic parameters (baudrate, character format,
 flow-control, etc.), for reading and writing data from and to them,
-and for a few other miscellaneous operations (e.g. sending a break
-signal, flushing the I/O buffers).
+and for a few other miscellaneous operations (sending a break signal,
+flushing the I/O buffers, and so on).
 
 Data transfer operations support deadlines (timeouts)
 and safe cancelation; a blocked read or write operation can be
@@ -27,7 +27,7 @@ port.
 Most unix-like systems are supported.
 
 Package *serial* uses package
-[termios](https://github.com/npat-efault/serial#termios) to
+[termios](https://github.com/npat-efault/serial#termios-) to
 supports systems that provide the POSIX Terminal Interface for
 configuring terminal devices.
 
@@ -65,7 +65,7 @@ LIBC functions and macros through CGo, or as a pure-go package that
 issues system calls directly. In either case, the API presented by the
 package is identical.
 
-By default package *termios* is built to use CGo to access the
+By default, package *termios* is built to use CGo to access the
 system's LIBC termios functions and macros. This is the most portable
 option. If building *termios* fails on a system that has POSIX termios
 support, please
