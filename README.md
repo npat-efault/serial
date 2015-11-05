@@ -1,11 +1,12 @@
 
-#serial
- [![GoDoc](https://godoc.org/github.com/npat-efault/serial?status.png)](https://godoc.org/github.com/npat-efault/serial)
+#serial [![GoDoc](https://godoc.org/github.com/npat-efault/serial?status.png)](https://godoc.org/github.com/npat-efault/serial)
  
 Download:
 ```shell
 go get github.com/npat-efault/serial
 ```
+
+***
 
 Package serial provides a simple, high-level, system-independent
 interface for accessing asynchronous serial ports.
@@ -21,7 +22,7 @@ and safe cancelation; a blocked read or write operation can be
 safely and reliably canceled from another goroutine by closing the
 port.
 
-##Supported systems
+###Supported systems
 
 Most unix-like systems are supported.
 
@@ -52,7 +53,7 @@ Interface (POSIX Termios). It's more low-level and system-specific
 than package serial and can be used to configure terminal
 devices on most Unix-like systems that support POSIX Termios.
 
-##Supported systems
+###Supported systems
 Package termios should work on all systems that support the POSIX
 terminal interface, that is, on most Unix-like systems.  Depending
 on the system, package termios can either be built to use the
