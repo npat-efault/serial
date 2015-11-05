@@ -219,29 +219,3 @@ func (p *Port) FlushIn() error {
 func (p *Port) FlushOut() error {
 	return p.port.flush(flushOut)
 }
-
-// speedTable is used to map numeric tty speeds (baudrates) to the
-// respective system-specific code values. It may or may-not be used
-// by system-specific implementations.
-type speedTable []struct {
-	speed int
-	code  uint32
-}
-
-func (t speedTable) Code(speed int) (code uint32, ok bool) {
-	for _, s := range t {
-		if s.speed == speed {
-			return s.code, true
-		}
-	}
-	return 0, false
-}
-
-func (t speedTable) Speed(code uint32) (speed int, ok bool) {
-	for _, s := range t {
-		if s.code == code {
-			return s.speed, true
-		}
-	}
-	return 0, false
-}
