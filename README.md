@@ -27,7 +27,7 @@ port.
 Most unix-like systems are supported.
 
 Package *serial* uses package
-[termios](https://github.com/npat-efault/serial#serialtermios) to
+[termios](https://github.com/npat-efault/serial#termios) to
 supports systems that provide the POSIX Terminal Interface for
 configuring terminal devices.
 
@@ -39,7 +39,7 @@ Depending on the specific system, both of these packages (*termios*
 and *poller*) can be compiled either to use CGo, or as pure-Go
 packages. See their documentation for details.
 
-Additional of support for other systems is certainly possible, and
+Addition of support for other systems is certainly possible, and
 mostly welcome. *Patches and pull requests for this will be greatly
 appreciated.*
 
@@ -47,8 +47,9 @@ appreciated.*
 
 #termios [![GoDoc](https://godoc.org/github.com/npat-efault/serial/termios?status.png)](https://godoc.org/github.com/npat-efault/serial/termios)
 
-Package *termios* is a simple Go wrapper to the POSIX Terminal
-Interface (POSIX Termios).
+Package *termios* is a simple Go wrapper to the
+[POSIX Terminal Interface](https://en.wikipedia.org/wiki/POSIX_terminal_interface)
+(POSIX Termios).
 
 Package *termios* is more low-level and system-specific than package
 [serial](https://github.com/npat-efault/serial) and can be used to
@@ -72,9 +73,9 @@ support, please
 submit a patch to make it work (the required changes will most likely
 be trivial).
 
-Alternatively, if you wish, you can build package *termios* as a
-*pure-Go* package that issues system-calls directly. To do this define
-the `nocgo` build-tag when building/installing the package, like this:
+Alternatively, you can build package *termios* as a *pure-Go* package
+that issues system-calls directly. To do this define the `nocgo`
+build-tag when building/installing the package, like this:
 
 ```shell
 cd $GOPATH/github.com/npat-efault/serial/termios
