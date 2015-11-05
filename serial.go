@@ -8,11 +8,11 @@
 // functions and methods for opening serial ports, configuring their
 // basic parameters (baudrate, character format, flow-control, etc.),
 // for reading and writing data from and to them, and for a few other
-// miscellaneous operations (e.g. sending a break signal, flushing the
-// I/O buffers). Data transfer operations support deadlines (timeouts)
-// and safe cancelation; a blocked read or write operation can be
-// safely and reliably canceled from another goroutine by closing the
-// port.
+// miscellaneous operations (sending a break signal, flushing the I/O
+// buffers, and so on). Data transfer operations support deadlines
+// (timeouts) and safe cancelation; a blocked read or write operation
+// can be safely and reliably canceled from another goroutine by
+// closing the port.
 //
 // Supported systems
 //
@@ -119,7 +119,10 @@ func Open(name string) (port *Port, err error) {
 // Close closes the port. Unless the port has been configured with
 // Conf.NoReset = true, the port is reset to its original settings
 // (the ones it had at open), and the connection is terminated by
-// de-asserting the modem control lines.
+// de-asserting the modem control lines. It is safe to call Close
+// concurently (from another goroutine) with any other Port
+// method. Close will cancel ongoing (blocked) Read and Write
+// operations, and make them return ErrClosed.
 func (p *Port) Close() error {
 	return p.port.close()
 }
@@ -223,7 +226,7 @@ func (p *Port) FlushIn() error {
 	return p.port.flush(flushIn)
 }
 
-// FlushOut discards any unread data in the serial port's transmit
+// FlushOut discards any unsent data in the serial port's transmit
 // buffers.
 func (p *Port) FlushOut() error {
 	return p.port.flush(flushOut)
