@@ -42,17 +42,23 @@ func open(name string) (p *port, err error) {
 	if err != nil {
 		return nil, newErr("tcgetattr: " + err.Error())
 	}
+	// ?? Set HUPCL ??
+	// tiosOrig.CFlag().Set(termios.HUPCL)
+	// err = tiosOrig.SetFd(fd.Sysfd(), termios.TCSANOW)
+	// if err != nil {
+	// 	return nil, newErr("tcsetattr: " + err.Error())
+	// }
+	noReset := !tiosOrig.CFlag().Any(termios.HUPCL)
 
-	// Set raw mode, CLOCAL and HUPCL
+	// Set raw mode
 	tios := tiosOrig
 	tios.MakeRaw()
-	tios.CFlag().Set(termios.CLOCAL | termios.HUPCL)
 	err = tios.SetFd(fd.Sysfd(), termios.TCSANOW)
 	if err != nil {
 		return nil, newErr("tcsetattr: " + err.Error())
 	}
 
-	return &port{fd: fd, origTermios: tiosOrig}, nil
+	return &port{fd: fd, origTermios: tiosOrig, noReset: noReset}, nil
 }
 
 func (p *port) close() error {
@@ -165,13 +171,6 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 	}
 	defer p.fd.Unlock()
 
-	if flags&ConfNoReset != 0 {
-		p.noReset = conf.NoReset
-	}
-	if flags & ^ConfNoReset == 0 {
-		return nil
-	}
-
 	var tios termios.Termios
 	err := tios.GetFd(p.fd.Sysfd())
 	if err != nil {
@@ -261,6 +260,15 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 		default:
 			return newErr("invalid flow-control mode: " +
 				conf.Flow.String())
+		}
+	}
+
+	if flags&ConfNoReset != 0 {
+		p.noReset = conf.NoReset
+		if p.noReset {
+			tios.CFlag().Clr(termios.HUPCL)
+		} else {
+			tios.CFlag().Set(termios.HUPCL)
 		}
 	}
 
