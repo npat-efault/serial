@@ -115,7 +115,10 @@ func TestSetGet(t *testing.T) {
 	if err != nil {
 		t.Fatal("Cannot set O speed to 19200:", err)
 	}
-	ti.SetISpeed(0) // Same as O-speed
+	ti.SetISpeed(19200)
+	if err != nil {
+		t.Fatal("Cannot set I speed to 19200:", err)
+	}
 	err = ti.SetFd(int(f.Fd()), termios.TCSAFLUSH)
 	if err != nil {
 		t.Fatal("Cannot set termios:", err)
@@ -159,7 +162,7 @@ func TestMisc(t *testing.T) {
 	/* Set low baudrate */
 	baudrate := 1200
 	ti.SetOSpeed(baudrate)
-	ti.SetISpeed(0) // Same as O-speed
+	ti.SetISpeed(baudrate)
 	/* Disable flow control */
 	ti.CFlag().Clr(termios.CRTSCTS)
 	ti.IFlag().Clr(termios.IXON | termios.IXOFF | termios.IXANY)
