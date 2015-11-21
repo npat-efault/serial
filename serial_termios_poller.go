@@ -182,6 +182,10 @@ func (p *port) confSome(conf Conf, flags ConfFlags) error {
 		if err != nil {
 			return newErr("setospeed: " + err.Error())
 		}
+		err = tios.SetISpeed(conf.Baudrate)
+		if err != nil {
+			return newErr("setispeed: " + err.Error())
+		}
 	}
 
 	if flags&ConfDatabits != 0 {
