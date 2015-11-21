@@ -3,17 +3,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.txt file.
 
-// +build netbsd openbsd darwin dragonfly solaris
+// +build freebsd
 // +build !nocgo
 
-// Standard serial port speeds defined by POSIX and taken from
+// Standard serial port speeds defined by FreeBSD and taken from
 // system's LIBC headers using CGo.
-//
-// These speeds should be available on all POSIX systems. Most likely
-// your system will support more (higher) speeds. If this is the case,
-// see "cgo_speeds_full.go", or copy this file as
-// "cgo_speeds_<system>.go", add the additional supported speeds and
-// edit the build-tags accordingly.
 
 package termios
 
@@ -36,7 +30,16 @@ var stdSpeeds = speedTable{
 	{1800, C.B1800},
 	{2400, C.B2400},
 	{4800, C.B4800},
+	{7200, C.B7200},
 	{9600, C.B9600},
+	{14400, C.B14400},
 	{19200, C.B19200},
+	{28800, C.B28800},
 	{38400, C.B38400},
+	{57600, C.B57600},
+	{76800, C.B76800},
+	{115200, C.B115200},
+	{230400, C.B230400},
+	{460800, C.B460800},
+	{921600, C.B921600},
 }
