@@ -79,4 +79,10 @@ const (
 	TCIFLUSH  = unix.TCIFLUSH
 	TCOFLUSH  = unix.TCOFLUSH
 	TCIOFLUSH = unix.TCIOFLUSH
+
+	// Values for the act argument of Flow
+	TCOOFF = unix.TCOOFF
+	TCOON  = unix.TCOON
+	TCIOFF = unix.TCIOFF
+	TCION  = unix.TCION
 )

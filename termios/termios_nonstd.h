@@ -64,3 +64,10 @@
 #ifndef VEOL2
 #define VEOL2 -1
 #endif
+
+/* Kluge: Fix tcsetpgrp prototype on Linux */
+
+int mytcsetpgrp(int fd, pid_t pid)
+{
+    return tcsetpgrp(fd, pid);
+}

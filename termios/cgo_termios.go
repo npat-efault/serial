@@ -104,6 +104,12 @@ const (
 	TCIFLUSH  = C.TCIFLUSH
 	TCOFLUSH  = C.TCOFLUSH
 	TCIOFLUSH = C.TCIOFLUSH
+
+	// Values for the act argument of Flow
+	TCOOFF = C.TCOOFF
+	TCOON  = C.TCOON
+	TCIOFF = C.TCIOFF
+	TCION  = C.TCION
 )
 
 // TcFlag is a word containing Termios mode-flags
@@ -271,6 +277,47 @@ func Drain(fd int) error {
 // seconds.
 func SendBreak(fd int) error {
 	r, err := C.tcsendbreak(C.int(fd), 0)
+	if r < 0 {
+		return err
+	}
+	return nil
+}
+
+// Flow suspends or resumes the transmission or reception of data on
+// the terminal associated with fd, depending on the value of the act
+// argument. The act argument value must be one of: TCOOFF (suspend
+// transmission), TCOON (resume transmission), TCIOFF (suspend
+// reception by sending a STOP char), TCION (resume reception by
+// sending a START char). See also tcflow(3).
+func Flow(fd int, act int) error {
+	for {
+		r, err := C.tcflow(C.int(fd), C.int(act))
+		if r < 0 {
+			// This is most-likely not possible, but
+			// better be safe.
+			if err == syscall.EINTR {
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+}
+
+// GetPgrp returns the process group ID of the foreground process
+// group associated with the terminal. See tcgetpgrp(3).
+func GetPgrp(fd int) (pgid int, err error) {
+	r, err := C.tcgetpgrp(C.int(fd))
+	if r < 0 {
+		return 0, err
+	}
+	return int(r), nil
+}
+
+// SetPgrp sets the foreground process group ID associated with the
+// terminal to pgid. See tcsetpgrp(3).
+func SetPgrp(fd int, pgid int) error {
+	r, err := C.mytcsetpgrp(C.int(fd), C.pid_t(pgid))
 	if r < 0 {
 		return err
 	}

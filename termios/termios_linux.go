@@ -220,3 +220,37 @@ func Drain(fd int) error {
 func SendBreak(fd int) error {
 	return ioctlV(fd, unix.TCSBRK, 0)
 }
+
+// Flow suspends or resumes the transmission or reception of data on
+// the terminal associated with fd, depending on the value of the act
+// argument. The act argument value must be one of: TCOOFF (suspend
+// transmission), TCOON (resume transmission), TCIOFF (suspend
+// reception by sending a STOP char), TCION (resume reception by
+// sending a START char). See also tcflow(3).
+func Flow(fd int, act int) error {
+	for {
+		err := ioctlV(fd, unix.TCXONC, uintptr(act))
+		// This is most-likely not possible, but
+		// better be safe.
+		if err == syscall.EINTR {
+			continue
+		}
+		return err
+	}
+}
+
+// GetPgrp returns the process group ID of the foreground process
+// group associated with the terminal. See tcgetpgrp(3).
+func GetPgrp(fd int) (pgid int, err error) {
+	err = ioctlP(fd, unix.TIOCGPGRP, unsafe.Pointer(&pgid))
+	if err != nil {
+		return 0, err
+	}
+	return pgid, nil
+}
+
+// SetPgrp sets the foreground process group ID associated with the
+// terminal to pgid. See tcsetpgrp(3).
+func SetPgrp(fd int, pgid int) error {
+	return ioctlP(fd, unix.TIOCSPGRP, unsafe.Pointer(&pgid))
+}
