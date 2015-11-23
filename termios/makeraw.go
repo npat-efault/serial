@@ -11,6 +11,13 @@
 
 package termios
 
+// MakeRaw sets the terminal attributes in t to values appropriate for
+// configuring the terminal to "raw" mode: Input available character
+// by character, echoing disabled, and all special processing of
+// terminal input and output characters disabled. Notice that MakeRaw
+// does not actually configure the terminal, it only sets the
+// attributes in t. In order to configure the terminal, you must
+// subsequently call the t.SetFd method.
 func (t *Termios) MakeRaw() {
 	t.IFlag().Clr(IMAXBEL | IXOFF | INPCK | BRKINT | PARMRK |
 		ISTRIP | INLCR | IGNCR | ICRNL | IXON | IGNPAR)
