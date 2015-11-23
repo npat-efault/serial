@@ -6,7 +6,7 @@
 // +build linux
 // +build !nocgo
 
-// Standard serial port speeds. Full set (externds POSIX). Taken from
+// Standard serial port speeds. Linux set (externds POSIX). Taken from
 // system's LIBC headers using CGo.
 
 package termios
