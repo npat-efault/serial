@@ -1,18 +1,12 @@
-// Copyright (c) 2015, Nick Patavalis (npat@efault.net).
+// Copyright (c) 2020, Alexey McSakoff (mcsakoff@gmail.com).
 // All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE.txt file.
 
-// +build freebsd netbsd openbsd dragonfly solaris
+// +build darwin
 // +build nocgo !cgo
 
-// Standard serial port speeds defined by POSIX.
-//
-// These speeds should be available on all POSIX systems. Most likely
-// your system will support more (higher) speeds. If this is the case,
-// see "speeds_full.go" or copy this file as "speeds_<system>.go", add
-// the additional supported speeds and edit the build-tags
-// accordingly.
+// Standard serial port speeds. Darwin set (extends POSIX).
 
 package termios
 
@@ -32,7 +26,14 @@ var stdSpeeds = speedTable{
 	{1800, unix.B1800},
 	{2400, unix.B2400},
 	{4800, unix.B4800},
+	{7200, unix.B7200},
 	{9600, unix.B9600},
+	{14400, unix.B14400},
 	{19200, unix.B19200},
+	{28800, unix.B28800},
 	{38400, unix.B38400},
+	{57600, unix.B57600},
+	{76800, unix.B76800},
+	{115200, unix.B115200},
+	{230400, unix.B230400},
 }
